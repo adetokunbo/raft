@@ -18,7 +18,7 @@ import Raft.Types
 -- | Representation of the logs' destination
 data LogDest
   = LogFile FilePath
-  | LogWith (forall m. MonadIO m => Text -> m ())
+  | LogWith (Text -> IO ())
   | LogStdout
   | NoLogs
 
