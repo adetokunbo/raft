@@ -18,6 +18,7 @@ import Raft.Types
 -- | Representation of the logs' destination
 data LogDest
   = LogFile FilePath
+  | LogWith (forall m. Monad m => Text -> m ())
   | LogStdout
   | NoLogs
 
@@ -74,9 +75,12 @@ instance RaftLogger m => RaftLogger (RaftLoggerT m) where
 logToDest :: MonadIO m => LogDest -> LogMsg -> m ()
 logToDest logDest logMsg =
   case logDest of
-    LogStdout -> putText (logMsgToText logMsg)
-    LogFile fp -> liftIO $ appendFile fp (logMsgToText logMsg <> "\n")
+    LogStdout -> putText logMsgAsText
+    LogFile fp -> liftIO $ appendFile fp (logMsgAsText <> "\n")
+    LogWith f -> f logMsgAsText
     NoLogs -> pure ()
+  where
+    logMsgAsText = logMsgToText logMsg
 
 logToStdout :: MonadIO m => LogMsg -> m ()
 logToStdout = logToDest LogStdout
