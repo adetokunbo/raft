@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -9,17 +10,21 @@ import Protolude
 
 import qualified Data.Serialize as S
 
-import Raft.NodeState
+import Raft.Log (Entry, EntryHash, Entries)
 import Raft.Types
 
 -- | Interface for Raft nodes to send messages to clients
 class RaftSendClient m sm where
-  sendClient :: ClientId -> ClientResponse sm -> m ()
+  sendClient :: ClientId -> ClientResponse sm v -> m ()
 
 -- | Interface for Raft nodes to receive messages from clients
 class Show (RaftRecvClientError m v) => RaftRecvClient m v where
   type RaftRecvClientError m v
   receiveClient :: m (Either (RaftRecvClientError m v) (ClientRequest v))
+
+--------------------------------------------------------------------------------
+-- Client Requests
+--------------------------------------------------------------------------------
 
 -- | Representation of a client request coupled with the client id
 data ClientRequest v
@@ -30,43 +35,63 @@ instance S.Serialize v => S.Serialize (ClientRequest v)
 
 -- | Representation of a client request
 data ClientReq v
-  = ClientReadReq -- ^ Request the latest state of the state machine
+  = ClientReadReq ClientReadReq -- ^ Request the latest state of the state machine
   | ClientWriteReq v -- ^ Write a command
   deriving (Show, Generic)
 
 instance S.Serialize v => S.Serialize (ClientReq v)
 
--- | Representation of a client response
-data ClientResponse s
-  = ClientReadResponse (ClientReadResp s)
+data ClientReadReq
+  = ClientReadEntries ReadEntriesSpec
+  | ClientReadStateMachine
+  deriving (Show, Generic, S.Serialize)
+
+data ReadEntriesSpec
+  = ByIndex Index
+  | ByIndices (Maybe Index) (Maybe Index)
+  | ByHash EntryHash
+  | ByHashes (Set EntryHash)
+  deriving (Show, Generic, S.Serialize)
+
+data ReadEntriesError
+  = EntryDoesNotExist (Either EntryHash Index)
+  | InvalidIntervalSpecified (Index, Index)
+
+--------------------------------------------------------------------------------
+-- Client Responses
+--------------------------------------------------------------------------------
+
+-- | Specification for the data inside a ClientResponse
+data ClientRespSpec
+  = ClientReadRespSpec ClientReadRespSpec
+  | ClientWriteRespSpec Index
+  | ClientRedirRespSpec CurrentLeader
+  deriving (Show, Generic, S.Serialize)
+
+data ClientReadRespSpec
+  = ClientReadRespSpecEntries ReadEntriesSpec
+  | ClientReadRespSpecStateMachine
+  deriving (Show, Generic, S.Serialize)
+
+--------------------------------------------------------------------------------
+
+-- | The datatype sent back to the client as an actual response
+data ClientResponse sm v
+  = ClientReadResponse (ClientReadResp sm v)
     -- ^ Respond with the latest state of the state machine.
-  | ClientWriteResponse ClientWriteResp
+  | ClientWriteResponse Index
     -- ^ Respond with the index of the entry appended to the log
-  | ClientRedirectResponse ClientRedirResp
+  | ClientRedirectResponse CurrentLeader
     -- ^ Respond with the node id of the current leader
   deriving (Show, Generic)
 
-instance S.Serialize s => S.Serialize (ClientResponse s)
+instance (S.Serialize sm, S.Serialize v) => S.Serialize (ClientResponse sm v)
 
 -- | Representation of a read response to a client
--- The `s` stands for the "current" state of the state machine
-newtype ClientReadResp s
-  = ClientReadResp s
+data ClientReadResp sm v
+  = ClientReadRespStateMachine sm
+  | ClientReadRespEntry (Entry v)
+  | ClientReadRespEntries (Entries v)
   deriving (Show, Generic)
 
-instance S.Serialize s => S.Serialize (ClientReadResp s)
-
--- | Representation of a write response to a client
-data ClientWriteResp
-  = ClientWriteResp Index
-  -- ^ Index of the entry appended to the log due to the previous client request
-  deriving (Show, Generic)
-
-instance S.Serialize ClientWriteResp
-
--- | Representation of a redirect response to a client
-data ClientRedirResp
-  = ClientRedirResp CurrentLeader
-  deriving (Show, Generic)
-
-instance S.Serialize ClientRedirResp
+instance (S.Serialize sm, S.Serialize v) => S.Serialize (ClientReadResp sm v)

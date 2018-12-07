@@ -18,6 +18,7 @@ import Protolude
 import qualified Crypto.Hash.SHA256 as SHA256
 
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Base16 as BS16
 import Data.Serialize
 import Data.Sequence (Seq(..), (|>), foldlWithIndex)
 
@@ -34,13 +35,13 @@ data EntryValue v
   deriving (Show, Generic, Serialize)
 
 newtype EntryHash = EntryHash ByteString
-  deriving (Show, Eq, Generic, Serialize)
+  deriving (Show, Eq, Ord, Generic, Serialize)
 
 genesisHash :: EntryHash
-genesisHash = EntryHash $ BS.replicate 32 0
+genesisHash = EntryHash $ BS16.encode $ BS.replicate 32 0
 
 hashEntry :: Serialize v => Entry v -> EntryHash
-hashEntry = EntryHash . SHA256.hash . encode
+hashEntry = EntryHash . BS16.encode . SHA256.hash . encode
 
 -- | Representation of an entry in the replicated log
 data Entry v = Entry

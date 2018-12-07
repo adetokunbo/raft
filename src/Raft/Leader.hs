@@ -182,7 +182,7 @@ isMajority n m = n >= m `div` 2 + 1
 mkAppendEntriesData
   :: Show v
   => LeaderState v
-  -> EntriesSpec v
+  -> AppendEntriesSpec v
   -> TransitionM sm v (AppendEntriesData v)
 mkAppendEntriesData ls entriesSpec = do
   currentTerm <- gets currentTerm

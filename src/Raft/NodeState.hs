@@ -12,6 +12,7 @@ import Protolude
 import qualified Data.Serialize as S
 import Data.Sequence (Seq(..))
 
+import Raft.Client
 import Raft.Log
 import Raft.Types
 
@@ -105,15 +106,6 @@ data NodeState (a :: Mode) v where
 
 deriving instance Show v => Show (NodeState s v)
 
--- | Representation of the current leader in the cluster. The system is
--- considered to be unavailable if there is no leader
-data CurrentLeader
-  = CurrentLeader LeaderId
-  | NoLeader
-  deriving (Show, Eq, Generic)
-
-instance S.Serialize CurrentLeader
-
 data LastLogEntry v
   = LastLogEntry (Entry v)
   | NoLogEntries
@@ -166,7 +158,12 @@ data CandidateState v = CandidateState
     -- ^ Index and term of the last log entry in the node's log
   } deriving (Show)
 
-type ClientReadReqs = Map Int (ClientId, Int)
+data ClientReadReqData = ClientReadReqData
+  { crrdClientId :: ClientId
+  , crrdReadEntriesSpec :: ReadEntriesSpec
+  } deriving (Show)
+
+type ClientReadReqs = Map Int (ClientReadReqData, Int)
 
 data LeaderState v = LeaderState
   { lsCommitIndex :: Index

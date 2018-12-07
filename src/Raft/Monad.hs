@@ -138,13 +138,16 @@ resetHeartbeatTimeout = tellAction (ResetTimeoutTimer HeartbeatTimeout)
 
 redirectClientToLeader :: ClientId -> CurrentLeader -> TransitionM sm v ()
 redirectClientToLeader clientId currentLeader = do
-  let clientRedirResp = ClientRedirectResponse (ClientRedirResp currentLeader)
-  tellAction (RespondToClient clientId clientRedirResp)
+  let clientRedirRespSpec = ClientRedirRespSpec currentLeader
+  tellAction (RespondToClient clientId clientRedirRespSpec)
 
-respondClientRead :: ClientId -> TransitionM sm v ()
-respondClientRead clientId = do
-  clientReadResp <- ClientReadResponse . ClientReadResp <$> asks stateMachine
-  tellAction (RespondToClient clientId clientReadResp)
+respondClientRead :: ClientId -> ClientReadRespSpec -> TransitionM sm v ()
+respondClientRead clientId reSpec = do
+  let clientReadRespSpec = ClientReadRespSpec reSpec
+  tellAction (RespondToClient clientId clientReadRespSpec)
+
+respondClientWrite :: ClientId -> Index -> TransitionM sm v ()
+respondClientWrite cid idx = tellAction (RespondToClient cid (ClientWriteRespSpec idx))
 
 appendLogEntries :: Show v => Seq (Entry v) -> TransitionM sm v ()
 appendLogEntries = tellAction . AppendLogEntries
